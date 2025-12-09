@@ -14,10 +14,146 @@ from app.schemas.customer_segments import (
     RegionSegmentTopCategoryItem,
     RegionSegmentTopProductsResponse,
     RegionSegmentTopProductItem,
+    CustomerSegmentOptionsResponse,
+    CustomerSegmentMasterResponse,
+    CustomerSegmentMasterItem,
+    CustomerSegmentLogResponse,
+    CustomerSegmentLogItem,
 )
 
 
 router = APIRouter(prefix="/customer/segments", tags=["customer-segments"])
+
+
+@router.get("/log", response_model=CustomerSegmentLogResponse)
+def get_customer_segment_log(
+    db: Session = Depends(get_db),
+    segment_id: Optional[str] = Query(
+        None, description="변경 후 세그먼트 ID (필터용, 예: F01 등)"
+    ),
+    customer_id: Optional[str] = Query(
+        None, description="고객 ID (필터용, 특정 고객 이력만 조회)"
+    ),
+):
+    """
+    고객 세그먼트 이동 이력 조회
+
+    - CUSTOMER_SEGMENT_LOG 기준
+    - 각 row 는 특정 시점에 '어느 세그먼트로 이동했는지'를 나타냄
+    - fromSegment 는 직전 세그먼트를 조회해서 구성 (없으면 None)
+    """
+
+    base_sql = """
+        SELECT
+            curr.CUSTOMER_ID AS customer_id,
+            cs_from.SEGMENT_NM AS from_segment,
+            cs_to.SEGMENT_NM   AS to_segment,
+            curr.START_DT      AS changed_date,
+            curr.SOURCE        AS reason
+        FROM CUSTOMER_SEGMENT_LOG curr
+        LEFT JOIN CUSTOMER_SEGMENT_LOG prev
+            ON prev.CUSTOMER_ID = curr.CUSTOMER_ID
+           AND prev.END_DT = curr.START_DT
+        LEFT JOIN CUSTOMER_SEGMENT cs_to
+            ON cs_to.SEGMENT_ID = curr.SEGMENT_ID
+        LEFT JOIN CUSTOMER_SEGMENT cs_from
+            ON cs_from.SEGMENT_ID = prev.SEGMENT_ID
+        WHERE 1=1
+    """
+
+    where_clauses: List[str] = []
+    params: Dict[str, object] = {}
+
+    if segment_id:
+        where_clauses.append("curr.SEGMENT_ID = :segment_id")
+        params["segment_id"] = segment_id
+
+    if customer_id:
+        where_clauses.append("curr.CUSTOMER_ID = :customer_id")
+        params["customer_id"] = customer_id
+
+    if where_clauses:
+        base_sql += " AND " + " AND ".join(where_clauses)
+
+    base_sql += """
+        ORDER BY curr.START_DT DESC, curr.CUSTOMER_ID
+        LIMIT 500
+    """
+
+    rows = db.execute(text(base_sql), params).mappings().all()
+
+    items: List[CustomerSegmentLogItem] = []
+    for row in rows:
+        items.append(
+            CustomerSegmentLogItem(
+                customerId=row["customer_id"],
+                customerName=None,
+                fromSegment=row.get("from_segment"),
+                toSegment=row.get("to_segment") or "",
+                changedDate=row["changed_date"],
+                reason=row.get("reason"),
+            )
+        )
+
+    return CustomerSegmentLogResponse(items=items)
+
+
+@router.get("/options", response_model=CustomerSegmentOptionsResponse)
+def get_customer_segment_options(db: Session = Depends(get_db)):
+    """
+    활성화된 고객 세그먼트 목록 조회 (드롭다운용)
+    """
+    sql = """
+        SELECT SEGMENT_NM
+        FROM CUSTOMER_SEGMENT
+        WHERE ACTIVE_FLAG = 'Y'
+        ORDER BY SEGMENT_ID
+    """
+    rows = db.execute(text(sql)).mappings().all()
+    names = [row["SEGMENT_NM"] for row in rows if row.get("SEGMENT_NM")]
+    return CustomerSegmentOptionsResponse(items=names)
+
+
+@router.get("/master", response_model=CustomerSegmentMasterResponse)
+def get_customer_segment_master(db: Session = Depends(get_db)):
+    """
+    고객 세그먼트 마스터 목록 조회 (세그먼트 관리 화면용)
+    """
+    sql = """
+        SELECT
+            cs.SEGMENT_ID,
+            cs.SEGMENT_NM,
+            cs.SEGMENT_TYPE,
+            cs.DESCRIPTION,
+            cs.ACTIVE_FLAG,
+            COALESCE(cnt.cnt, 0) AS customer_count
+        FROM CUSTOMER_SEGMENT cs
+        LEFT JOIN (
+            SELECT
+                SEGMENT_ID,
+                COUNT(DISTINCT CUSTOMER_ID) AS cnt
+            FROM CUSTOMER_SEGMENT_LOG
+            WHERE END_DT IS NULL
+            GROUP BY SEGMENT_ID
+        ) cnt ON cs.SEGMENT_ID = cnt.SEGMENT_ID
+        ORDER BY cs.SEGMENT_ID
+    """
+    rows = db.execute(text(sql)).mappings().all()
+
+    items: List[CustomerSegmentMasterItem] = []
+    for row in rows:
+        items.append(
+            CustomerSegmentMasterItem(
+                segmentId=row["SEGMENT_ID"],
+                segmentName=row["SEGMENT_NM"],
+                segmentType=row.get("SEGMENT_TYPE") or "",
+                description=row.get("DESCRIPTION"),
+                customerCount=int(row.get("customer_count") or 0),
+                isActive=(str(row.get("ACTIVE_FLAG") or "N") == "Y"),
+            )
+        )
+
+    return CustomerSegmentMasterResponse(items=items)
 
 
 REGION_CASE_SQL = """

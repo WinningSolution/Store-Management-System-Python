@@ -8,6 +8,8 @@ from . import (
     inventory,
     order_forecast,
     customer_segments,
+    customer_retention,
+    customer,
 )
 
 __all__ = [
@@ -20,4 +22,6 @@ __all__ = [
     "inventory",
     "order_forecast",
     "customer_segments",
+    "customer_retention",
+    "customer",
 ]

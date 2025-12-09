@@ -52,9 +52,8 @@ const navigation: NavItem[] = [
     children: [
       { label: '고객 목록', page: 'customer-list' },
       { label: '세그먼트 관리', page: 'customer-segment-master' },
-      { label: '세그먼트 성과', page: 'segment-performance' },
+      { label: '리텐션·코호트 분석', page: 'segment-performance' },
       { label: '권역·세그먼트 분석', page: 'customer-region-analytics' },
-      { label: '코호트·리텐션', page: 'cohort-retention' },
       { label: '쿠폰 발급', page: 'coupon-issue' },
       { label: 'A/B 테스트', page: 'ab-test-dashboard' },
     ],

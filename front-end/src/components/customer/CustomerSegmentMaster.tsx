@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Page } from "../../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -11,55 +12,37 @@ import {
   TableRow,
 } from "../ui/table";
 import { Plus } from "lucide-react";
+import {
+  fetchCustomerSegmentsMaster,
+  CustomerSegmentMasterItem,
+} from "../../services/customerApi";
 
 interface CustomerSegmentMasterProps {
   onNavigate: (page: Page) => void;
 }
 
-const segmentData = [
-  {
-    id: "SEG001",
-    name: "VIP 고객",
-    type: "RFM",
-    description: "R≥4, F≥5, M≥1M",
-    customerCount: 280,
-    isActive: true,
-  },
-  {
-    id: "SEG002",
-    name: "Active 고객",
-    type: "RFM",
-    description: "R≥3, F≥3, M≥500k",
-    customerCount: 580,
-    isActive: true,
-  },
-  {
-    id: "SEG003",
-    name: "신규 고객",
-    type: "CLUSTER",
-    description: "가입 후 30일 이내",
-    customerCount: 420,
-    isActive: true,
-  },
-  {
-    id: "SEG004",
-    name: "이탈 위험",
-    type: "RFM",
-    description: "R≤2, F≥5, M≥1M",
-    customerCount: 95,
-    isActive: true,
-  },
-  {
-    id: "SEG005",
-    name: "Churned 고객",
-    type: "RFM",
-    description: "R=1, 90일 이상 미구매",
-    customerCount: 320,
-    isActive: false,
-  },
-];
-
 export function CustomerSegmentMaster({ onNavigate }: CustomerSegmentMasterProps) {
+  const [segments, setSegments] = useState<CustomerSegmentMasterItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetchCustomerSegmentsMaster();
+        setSegments(res.items || []);
+      } catch (e: any) {
+        setError(e.message || "세그먼트 목록을 불러오지 못했습니다.");
+        setSegments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -75,9 +58,19 @@ export function CustomerSegmentMaster({ onNavigate }: CustomerSegmentMasterProps
 
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle>전체 세그먼트 ({segmentData.length}개)</CardTitle>
+          <CardTitle>
+            전체 세그먼트 ({segments.length.toLocaleString()}개)
+          </CardTitle>
         </CardHeader>
         <CardContent>
+          {error && (
+            <p className="text-xs text-red-500 mb-2">{error}</p>
+          )}
+          {loading && !error && (
+            <p className="text-xs text-gray-400 mb-2">
+              세그먼트 목록을 불러오는 중입니다...
+            </p>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -91,20 +84,23 @@ export function CustomerSegmentMaster({ onNavigate }: CustomerSegmentMasterProps
               </TableRow>
             </TableHeader>
             <TableBody>
-              {segmentData.map((segment) => (
-                <TableRow key={segment.id} className="hover:bg-gray-50">
+              {segments.map((segment) => (
+                <TableRow
+                  key={segment.segmentId}
+                  className="hover:bg-gray-50"
+                >
                   <TableCell className="font-mono text-sm">
-                    {segment.id}
+                    {segment.segmentId}
                   </TableCell>
-                  <TableCell>{segment.name}</TableCell>
+                  <TableCell>{segment.segmentName}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{segment.type}</Badge>
+                    <Badge variant="outline">{segment.segmentType}</Badge>
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">
                     {segment.description}
                   </TableCell>
                   <TableCell className="text-right">
-                    {segment.customerCount}명
+                    {segment.customerCount.toLocaleString()}명
                   </TableCell>
                   <TableCell>
                     {segment.isActive ? (
@@ -125,7 +121,9 @@ export function CustomerSegmentMaster({ onNavigate }: CustomerSegmentMasterProps
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => onNavigate('customer-segment-log')}
+                        onClick={() =>
+                          onNavigate("customer-segment-log", segment.segmentId)
+                        }
                       >
                         이력
                       </Button>

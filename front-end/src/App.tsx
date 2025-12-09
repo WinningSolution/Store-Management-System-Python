@@ -164,7 +164,12 @@ export default function App() {
       case 'customer-segment-master':
         return <CustomerSegmentMaster onNavigate={navigateTo} />;
       case 'customer-segment-log':
-        return <CustomerSegmentLog onNavigate={navigateTo} />;
+        return (
+          <CustomerSegmentLog
+            onNavigate={navigateTo}
+            segmentId={selectedId || undefined}
+          />
+        );
       case 'segment-performance':
         return <SegmentPerformance onNavigate={navigateTo} />;
       case 'customer-region-analytics':

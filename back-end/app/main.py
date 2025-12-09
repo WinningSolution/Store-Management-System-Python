@@ -11,24 +11,17 @@ from app.routers import (
     inventory,
     order_forecast,
     customer_segments,
+    customer_retention,
+    customer,
 )
 
 
 app = FastAPI(title="Winning Solution Store Management API")
 
-# CORS 설정: 로컬 프론트엔드에서 호출 가능하도록 허용
-origins = [
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    # 개발 환경에서는 모든 Origin 허용 (로컬 프론트엔드 CORS 오류 방지)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +40,8 @@ api_v1_router.include_router(store.router)
 api_v1_router.include_router(inventory.router)
 api_v1_router.include_router(order_forecast.router)
 api_v1_router.include_router(customer_segments.router)
+api_v1_router.include_router(customer_retention.router)
+api_v1_router.include_router(customer.router)
 
 # 라우터 등록
 app.include_router(api_v1_router)

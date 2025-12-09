@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import date
 
 from pydantic import BaseModel
 
@@ -62,4 +63,31 @@ class RegionSegmentTopProductsResponse(BaseModel):
     items: List[RegionSegmentTopProductItem]
 
 
+class CustomerSegmentOptionsResponse(BaseModel):
+    items: List[str]
 
+
+class CustomerSegmentMasterItem(BaseModel):
+    segmentId: str
+    segmentName: str
+    segmentType: str
+    description: Optional[str] = None
+    customerCount: int
+    isActive: bool
+
+
+class CustomerSegmentMasterResponse(BaseModel):
+    items: List[CustomerSegmentMasterItem]
+
+
+class CustomerSegmentLogItem(BaseModel):
+    customerId: str
+    customerName: Optional[str] = None
+    fromSegment: Optional[str] = None
+    toSegment: str
+    changedDate: date
+    reason: Optional[str] = None
+
+
+class CustomerSegmentLogResponse(BaseModel):
+    items: List[CustomerSegmentLogItem]

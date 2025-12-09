@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import { Page } from "../../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -9,47 +10,40 @@ import {
   TableHeader,
   TableRow,
 } from "../ui/table";
+import {
+  CustomerSegmentLogItem,
+  fetchCustomerSegmentLog,
+} from "../../services/customerApi";
 
 interface CustomerSegmentLogProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, id?: string) => void;
+  segmentId?: string;
 }
 
-const segmentLogData = [
-  {
-    customerId: "C00001",
-    customerName: "김민준",
-    fromSegment: "Active",
-    toSegment: "VIP",
-    changedDate: "2024-06-15",
-    reason: "구매 금액 증가",
-  },
-  {
-    customerId: "C00003",
-    customerName: "박지후",
-    fromSegment: "VIP",
-    toSegment: "Churned",
-    changedDate: "2024-06-10",
-    reason: "90일 이상 미구매",
-  },
-  {
-    customerId: "C00004",
-    customerName: "최하은",
-    fromSegment: "New",
-    toSegment: "Active",
-    changedDate: "2024-06-08",
-    reason: "재구매 발생",
-  },
-  {
-    customerId: "C00007",
-    customerName: "강서준",
-    fromSegment: "Active",
-    toSegment: "이탈 위험",
-    changedDate: "2024-06-05",
-    reason: "60일 이상 미구매",
-  },
-];
+export function CustomerSegmentLog({ onNavigate, segmentId }: CustomerSegmentLogProps) {
+  const [logs, setLogs] = useState<CustomerSegmentLogItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export function CustomerSegmentLog({ onNavigate }: CustomerSegmentLogProps) {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetchCustomerSegmentLog(
+          segmentId ? { segmentId } : undefined,
+        );
+        setLogs(res.items || []);
+      } catch (e: any) {
+        setError(e.message || "세그먼트 이력을 불러오지 못했습니다.");
+        setLogs([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [segmentId]);
+
   return (
     <div className="p-8">
       <div className="mb-8">
@@ -59,9 +53,20 @@ export function CustomerSegmentLog({ onNavigate }: CustomerSegmentLogProps) {
 
       <Card className="border-0 shadow-sm">
         <CardHeader>
-          <CardTitle>최근 세그먼트 이동</CardTitle>
+          <CardTitle>
+            최근 세그먼트 이동
+            {segmentId ? ` (세그먼트 ID: ${segmentId})` : ""}
+          </CardTitle>
         </CardHeader>
         <CardContent>
+          {error && (
+            <p className="text-xs text-red-500 mb-2">{error}</p>
+          )}
+          {loading && !error && (
+            <p className="text-xs text-gray-400 mb-2">
+              이력을 불러오는 중입니다...
+            </p>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -75,14 +80,19 @@ export function CustomerSegmentLog({ onNavigate }: CustomerSegmentLogProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {segmentLogData.map((log, idx) => (
-                <TableRow key={idx} className="hover:bg-gray-50">
+              {logs.map((log, idx) => (
+                <TableRow
+                  key={`${log.customerId}-${idx}`}
+                  className="hover:bg-gray-50"
+                >
                   <TableCell className="font-mono text-sm">
                     {log.customerId}
                   </TableCell>
-                  <TableCell>{log.customerName}</TableCell>
+                  <TableCell>{log.customerName || "-"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{log.fromSegment}</Badge>
+                    <Badge variant="outline">
+                      {log.fromSegment || "-"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">→</TableCell>
                   <TableCell>
@@ -92,10 +102,20 @@ export function CustomerSegmentLog({ onNavigate }: CustomerSegmentLogProps) {
                     {log.changedDate}
                   </TableCell>
                   <TableCell className="text-sm text-gray-600">
-                    {log.reason}
+                    {log.reason || "-"}
                   </TableCell>
                 </TableRow>
               ))}
+              {!loading && !error && logs.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="py-8 text-center text-sm text-gray-400"
+                  >
+                    표시할 이력 데이터가 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

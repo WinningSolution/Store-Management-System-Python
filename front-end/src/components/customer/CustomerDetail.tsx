@@ -1,53 +1,83 @@
+import React, { useEffect, useState } from "react";
 import { Page } from "../../App";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { ArrowLeft, User, ShoppingBag, TrendingUp } from "lucide-react";
+import {
+  fetchCustomerDetail,
+  CustomerDetailResponse,
+} from "../../services/customerApi";
 
 interface CustomerDetailProps {
   customerId: string;
   onNavigate: (page: Page) => void;
 }
 
-const customerInfo = {
-  id: "C00001",
-  name: "김민준",
-  gender: "남성",
-  age: "30대",
-  region: "서울 강남구",
-  phone: "010-1234-5678",
-  email: "minjun.kim@email.com",
-  joinDate: "2023-05-12",
-  segment: "VIP",
-  rfm: {
-    recency: 5,
-    frequency: 8,
-    monetary: 1250000,
-  },
-};
-
-const purchaseHistory = [
-  {
-    date: "2024-06-15",
-    orderId: "ORD2024061501",
-    amount: 185000,
-    products: "남성 반팔 티셔츠 외 2건",
-  },
-  {
-    date: "2024-05-22",
-    orderId: "ORD2024052201",
-    amount: 245000,
-    products: "남성 청바지, 벨트",
-  },
-  {
-    date: "2024-04-18",
-    orderId: "ORD2024041801",
-    amount: 125000,
-    products: "남성 셔츠",
-  },
-];
-
 export function CustomerDetail({ customerId, onNavigate }: CustomerDetailProps) {
+  const [detail, setDetail] = useState<CustomerDetailResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetchCustomerDetail(customerId);
+        setDetail(res);
+      } catch (e: any) {
+        setError(e.message || "고객 정보를 불러오지 못했습니다.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [customerId]);
+
+  // detail 이 로딩되기 전에 사용할 기본값
+  const customerInfo = detail
+    ? {
+        id: detail.customerId,
+        name: detail.customerId, // 현재는 이름 컬럼이 없으므로 ID로 대체
+        gender: detail.gender || "-",
+        age: detail.ageGroup || "-",
+        region: detail.region || "-",
+        phone: "-",
+        email: "-",
+        joinDate: detail.signupDt,
+        segment: detail.segment || "-",
+        rfm: {
+          recency: detail.rfm?.recency ?? 0,
+          frequency: detail.rfm?.frequency ?? 0,
+          monetary: detail.rfm?.monetary ?? 0,
+        },
+      }
+    : {
+        id: customerId,
+        name: customerId,
+        gender: "-",
+        age: "-",
+        region: "-",
+        phone: "-",
+        email: "-",
+        joinDate: "-",
+        segment: "-",
+        rfm: {
+          recency: 0,
+          frequency: 0,
+          monetary: 0,
+        },
+      };
+
+  const purchaseHistory =
+    detail?.recentPurchases?.map((p) => ({
+      date: p.saleDt?.slice(0, 10),
+      orderId: p.saleId,
+      amount: p.amount,
+      products: p.products || "",
+    })) || [];
+
   return (
     <div className="p-8">
       <Button
@@ -58,6 +88,15 @@ export function CustomerDetail({ customerId, onNavigate }: CustomerDetailProps) 
         <ArrowLeft className="w-4 h-4 mr-2" />
         고객 목록으로
       </Button>
+
+      {error && (
+        <p className="text-xs text-red-500 mb-4">{error}</p>
+      )}
+      {loading && !error && (
+        <p className="text-xs text-gray-400 mb-4">
+          고객 정보를 불러오는 중입니다...
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-6">
         {/* 좌측: 프로필 및 RFM */}
