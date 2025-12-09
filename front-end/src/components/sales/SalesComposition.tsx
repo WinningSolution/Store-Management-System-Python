@@ -51,6 +51,8 @@ interface SalesCompositionProps {
   onNavigate: (page: Page) => void;
   // 추세 비교 페이지와 동일한 필터를 연동하기 위한 선택적 프리셋
   baseMonth?: string;
+  /** 대시보드 등에서 넘어온 초기 점포 ID (없으면 전체) */
+  initialStoreId?: string;
 }
 
 // 카테고리/라인 탭용 더미 데이터 (9개 카테고리 비중 예시)
@@ -215,11 +217,19 @@ const topCategoryProducts = [
   { rank: 5, product: "남성 양말", sales: 1500000, count: 95, share: 4.3 },
 ];
 
-export function SalesComposition({ onNavigate }: SalesCompositionProps) {
+export function SalesComposition({
+  onNavigate,
+  baseMonth,
+  initialStoreId,
+}: SalesCompositionProps) {
+  const initialBaseMonth = baseMonth || "2025-09";
+
   const [activeTab, setActiveTab] = useState("category");
-  const [basePeriod, setBasePeriod] = useState<string>("2025-09");
+  const [basePeriod, setBasePeriod] = useState<string>(initialBaseMonth);
   const [periodRange, setPeriodRange] = useState<"recent" | "past">("recent");
-  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(
+    initialStoreId || ""
+  );
   const [allStores, setAllStores] = useState<StoreListItem[]>([]);
   const [storeRanking, setStoreRanking] = useState<StoreRankingItem[]>([]);
   const [loadingRanking, setLoadingRanking] = useState(false);
@@ -241,7 +251,7 @@ export function SalesComposition({ onNavigate }: SalesCompositionProps) {
   const [categoryTopError, setCategoryTopError] = useState<string | null>(null);
   const [categoryPage, setCategoryPage] = useState(1); // 1~3
   const [categoryTopBaseMonth, setCategoryTopBaseMonth] =
-    useState<string>("2025-09");
+    useState<string>(initialBaseMonth);
   const [categoryTrendItems, setCategoryTrendItems] = useState<CategoryTrendItem[]>([]);
   const [categoryTrendLoading, setCategoryTrendLoading] = useState(false);
   const [categoryTrendError, setCategoryTrendError] = useState<string | null>(null);

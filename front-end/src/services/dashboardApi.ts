@@ -46,6 +46,8 @@ export interface MainDashboardResponse {
   todayAttendance: TodayAttendanceItem[];
   vacationToday: VacationTodayItem[];
   notifications: NotificationItem[];
+  todaySalesSeries: { timeLabel: string; sales: number }[];
+  weekPeakSeries: { dayLabel: string; sales: number }[];
 }
 
 export interface ManagementKpi {

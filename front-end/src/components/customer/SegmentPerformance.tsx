@@ -80,6 +80,9 @@ export function SegmentPerformance({ onNavigate }: SegmentPerformanceProps) {
   const [trendByStore, setTrendByStore] = useState<
     Record<string, RetentionTrendItem[]>
   >({});
+  const [trendCache, setTrendCache] = useState<
+    Record<string, RetentionTrendItem[]>
+  >({});
   const [cohortItems, setCohortItems] = useState<CohortRetentionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,10 +157,15 @@ export function SegmentPerformance({ onNavigate }: SegmentPerformanceProps) {
         new Set(["__ALL__", ...selectedStoreIds]),
       );
 
-      const trendResults: Record<string, RetentionTrendItem[]> = {};
+      // 이미 한번 조회한 점포는 캐시에서 재사용하고,
+      // 새로 선택된 점포만 API 호출
+      const localCache: Record<string, RetentionTrendItem[]> = {
+        ...trendCache,
+      };
+      const missingIds = idsToQuery.filter((id) => !localCache[id]);
 
       await Promise.all(
-        idsToQuery.map(async (id) => {
+        missingIds.map(async (id) => {
           const params =
             id === "__ALL__"
               ? {}
@@ -165,10 +173,16 @@ export function SegmentPerformance({ onNavigate }: SegmentPerformanceProps) {
                   store_id: id,
                 };
           const res = await fetchCustomerRetentionTrend(params);
-          trendResults[id] = res.items || [];
+          localCache[id] = res.items || [];
         }),
       );
 
+      setTrendCache(localCache);
+
+      const trendResults: Record<string, RetentionTrendItem[]> = {};
+      idsToQuery.forEach((id) => {
+        trendResults[id] = localCache[id] || [];
+      });
       setTrendByStore(trendResults);
 
       // 코호트는 선택된 첫 점포 기준(없으면 전체)

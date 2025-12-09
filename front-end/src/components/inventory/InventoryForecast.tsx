@@ -10,6 +10,8 @@ import { fetchStores, StoreListItem } from '../../services/storeApi';
 
 interface InventoryForecastProps {
   onNavigate: (page: Page) => void;
+  /** 대시보드/재고 화면 등에서 넘어온 초기 점포 ID */
+  initialStoreId?: string;
 }
 
 const getPriorityColor = (priority: string) => {
@@ -25,9 +27,9 @@ const getPriorityColor = (priority: string) => {
 
 type PriorityFilter = 'ALL' | '긴급' | '높음' | '보통';
 
-export function InventoryForecast({ onNavigate }: InventoryForecastProps) {
+export function InventoryForecast({ onNavigate, initialStoreId }: InventoryForecastProps) {
   const [stores, setStores] = useState<StoreListItem[]>([]);
-  const [storeId, setStoreId] = useState<string | undefined>(undefined);
+  const [storeId, setStoreId] = useState<string | undefined>(initialStoreId);
   const [summary, setSummary] = useState<{
     urgentCount: number;
     totalRecommendQty: number;
@@ -47,7 +49,8 @@ export function InventoryForecast({ onNavigate }: InventoryForecastProps) {
           return !name.includes('온라인') && !name.includes('online');
         });
         setStores(all);
-        if (all.length > 0) {
+        // initialStoreId 가 없을 때만 기본 점포를 자동 선택
+        if (!initialStoreId && all.length > 0) {
           setStoreId(all[0].storeId);
         }
       } catch {
@@ -55,7 +58,7 @@ export function InventoryForecast({ onNavigate }: InventoryForecastProps) {
       }
     };
     loadStores();
-  }, []);
+  }, [initialStoreId]);
 
   const loadData = useMemo(
     () => async (targetStoreId?: string, priority: PriorityFilter = priorityFilter) => {

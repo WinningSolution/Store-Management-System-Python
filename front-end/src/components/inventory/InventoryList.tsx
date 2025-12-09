@@ -11,11 +11,12 @@ import { fetchStores, StoreListItem } from "../../services/storeApi";
 
 interface InventoryListProps {
   onNavigate: (page: Page, id?: string) => void;
+  initialStoreId?: string;
 }
 
-export function InventoryList({ onNavigate }: InventoryListProps) {
+export function InventoryList({ onNavigate, initialStoreId }: InventoryListProps) {
   const [stores, setStores] = useState<StoreListItem[]>([]);
-  const [storeId, setStoreId] = useState<string>("");
+  const [storeId, setStoreId] = useState<string>(initialStoreId || "");
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);

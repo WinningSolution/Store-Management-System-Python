@@ -13,6 +13,7 @@ from app.routers import (
     customer_segments,
     customer_retention,
     customer,
+    product,
 )
 
 
@@ -42,6 +43,7 @@ api_v1_router.include_router(order_forecast.router)
 api_v1_router.include_router(customer_segments.router)
 api_v1_router.include_router(customer_retention.router)
 api_v1_router.include_router(customer.router)
+api_v1_router.include_router(product.router)
 
 # 라우터 등록
 app.include_router(api_v1_router)

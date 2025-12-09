@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,6 +16,8 @@ from app.schemas.dashboard import (
     TodayAttendanceItem,
     VacationTodayItem,
     NotificationItem,
+    TodaySalesPoint,
+    WeekPeakPoint,
     ManagementDashboardResponse,
     ManagementKpi,
 )
@@ -60,11 +62,34 @@ def get_main_dashboard(
         or 0
     )
 
+    # 전주(지난 주간) 매출 계산 후 주간 전주 대비 증감률(%)
+    prev_week_start = week_start - timedelta(days=7)
+    prev_week_end = week_end - timedelta(days=7)
+    prev_week_sales_q = db.query(func.sum(Sales.qty * Sales.unit_price))
+    if store_id:
+        prev_week_sales_q = prev_week_sales_q.filter(Sales.store_id == store_id)
+    prev_week_sales = (
+        prev_week_sales_q.filter(
+            func.date(Sales.sale_dt) >= prev_week_start,
+            func.date(Sales.sale_dt) <= prev_week_end,
+        ).scalar()
+        or 0
+    )
+
+    # Decimal → float 로 변환 후 증감률 계산 (Decimal * float 오류 방지)
+    week_sales_val = float(week_sales or 0)
+    prev_week_sales_val = float(prev_week_sales or 0)
+    week_wow: Optional[float] = None
+    if prev_week_sales_val > 0:
+        week_wow = float(
+            (week_sales_val - prev_week_sales_val) / prev_week_sales_val * 100.0
+        )
+
     sales_summary = SalesSummary(
         todaySales=float(today_sales),
         weekSales=float(week_sales),
         weekSalesYoY=None,
-        weekSalesWoW=None,
+        weekSalesWoW=week_wow,
     )
 
     # 재고 임박/품절 알림
@@ -133,8 +158,81 @@ def get_main_dashboard(
             )
         )
 
-    # 알림은 skeleton (추후 별도 테이블 연동 가능)
+    # 주요 알림 구성 (재고/근태/휴가 요약)
     notifications: List[NotificationItem] = []
+
+    now_dt = datetime.utcnow()
+
+    # 1) 재고 긴급/임박 알림 (상위 3개만)
+    for alert in alerts[:3]:
+        if alert.stockStatus == "품절":
+            title = f"재고 품절: {alert.prodNm}"
+            message = f"{alert.storeId} - {alert.prodNm} 재고가 0개입니다."
+        else:
+            title = f"재고 임박: {alert.prodNm}"
+            message = f"{alert.storeId} - {alert.prodNm} 재고 {alert.totalQty}개 남음"
+        notifications.append(
+            NotificationItem(
+                id=f"inv-{alert.storeId}-{alert.prodId}",
+                type="inventory",
+                title=title,
+                message=message,
+                createdAt=now_dt,
+            )
+        )
+
+    # 2) 미출근 직원 알림
+    not_attended = [att for att in today_attendance if att.status == "미출근"]
+    if not_attended:
+        cnt = len(not_attended)
+        sample = not_attended[0]
+        title = "미출근 직원 알림"
+        message = f"{today} 기준 미출근 {cnt}명 (예: {sample.empNm})"
+        notifications.append(
+            NotificationItem(
+                id=f"att-{today.isoformat()}",
+                type="attendance",
+                title=title,
+                message=message,
+                createdAt=now_dt,
+            )
+        )
+
+    # 3) 휴가 직원 알림
+    if vacation_today:
+        cnt = len(vacation_today)
+        sample_vac = vacation_today[0]
+        title = "오늘 휴가 직원"
+        message = f"{today} 휴가자 {cnt}명 (예: {sample_vac.empNm})"
+        notifications.append(
+            NotificationItem(
+                id=f"vac-{today.isoformat()}",
+                type="vacation",
+                title=title,
+                message=message,
+                createdAt=now_dt,
+            )
+        )
+
+    # 오늘 매출 시간대별 시리즈 (실제 매출 기준)
+    sales_time_query = db.query(
+        extract("hour", Sales.sale_dt).label("hour"),
+        func.sum(Sales.qty * Sales.unit_price).label("amount"),
+    ).filter(func.date(Sales.sale_dt) == today)
+    if store_id:
+        sales_time_query = sales_time_query.filter(Sales.store_id == store_id)
+    sales_time_query = sales_time_query.group_by("hour").order_by("hour")
+
+    today_sales_series: List[TodaySalesPoint] = []
+    for row in sales_time_query.all():
+        hour_int = int(row.hour)
+        time_label = f"{hour_int:02d}:00"
+        today_sales_series.append(
+            TodaySalesPoint(timeLabel=time_label, sales=float(row.amount or 0.0))
+        )
+
+    # 주간 요일별 매출 시리즈는 현재 메인 대시보드에서 사용하지 않으므로 빈 배열로 반환
+    week_peak_series: List[WeekPeakPoint] = []
 
     return MainDashboardResponse(
         salesSummary=sales_summary,
@@ -142,6 +240,8 @@ def get_main_dashboard(
         todayAttendance=today_attendance,
         vacationToday=vacation_today,
         notifications=notifications,
+        todaySalesSeries=today_sales_series,
+        weekPeakSeries=week_peak_series,
     )
 
 

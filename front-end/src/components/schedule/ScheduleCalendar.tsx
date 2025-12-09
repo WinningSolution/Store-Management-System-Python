@@ -11,7 +11,10 @@ import {
 import { fetchStores, StoreListItem } from "../../services/storeApi";
 
 interface ScheduleCalendarProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, id?: string, options?: any) => void;
+  initialStoreId?: string;
+  /** 기준일(YYYY-MM-DD). 이 날짜가 포함된 주차를 초기 주차로 설정 */
+  initialBaseDate?: string;
 }
 
 type DayIssue = "지각" | "조퇴" | "결근";
@@ -96,35 +99,49 @@ export function ScheduleCalendar({ onNavigate }: ScheduleCalendarProps) {
 
   const getRegionKey = (storeNm?: string | null): RegionKey => {
     const name = (storeNm || "").toLowerCase();
-    if (name.includes("서울") || name.includes("인천")) return "seoulIncheon";
-    if (name.includes("경기")) return "gyeonggi";
-    if (name.includes("충청") || name.includes("대전") || name.includes("세종"))
-      return "chungcheong";
-    if (name.includes("광주") || name.includes("전주") || name.includes("전라"))
-      return "honam";
+  if (name.includes("서울") || name.includes("인천")) return "seoulIncheon";
+  if (name.includes("경기")) return "gyeonggi";
+  if (
+    name.includes("충청") ||
+    name.includes("충북") ||
+    name.includes("충남") ||
+    name.includes("대전") ||
+    name.includes("세종")
+  )
+    return "chungcheong";
+  if (
+    name.includes("광주") ||
+    name.includes("전주") ||
+    name.includes("전라") ||
+    name.includes("전북") ||
+    name.includes("전남")
+  )
+    return "honam";
     if (
       name.includes("부산") ||
       name.includes("대구") ||
       name.includes("울산") ||
-      name.includes("경상")
+    name.includes("경상") ||
+    name.includes("경북") ||
+    name.includes("경남")
     )
       return "yeongnam";
     if (name.includes("강원") || name.includes("제주")) return "gangwonJeju";
     return "others";
   };
 
-  // 기준 주차: 오늘이 포함된 주의 월요일
+  // 기준 주차: initialBaseDate 가 있으면 그 주의 월요일, 없으면 오늘 기준
   const [weekStart, setWeekStart] = useState<Date>(() => {
-    const today = new Date();
-    return getMonday(today);
+    const base = initialBaseDate ? new Date(initialBaseDate) : new Date();
+    return getMonday(base);
   });
   // 화면에서 선택 중인 "기준 월" (주차 드롭다운은 이 월 기준)
   const [viewMonth, setViewMonth] = useState<Date>(() => {
-    const today = new Date();
-    return new Date(today.getFullYear(), today.getMonth(), 1);
+    const base = initialBaseDate ? new Date(initialBaseDate) : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
   });
   const [stores, setStores] = useState<StoreListItem[]>([]);
-  const [storeId, setStoreId] = useState<string>("");
+  const [storeId, setStoreId] = useState<string>(initialStoreId || "");
   const [storeError, setStoreError] = useState<string | null>(null);
   const [items, setItems] = useState<ScheduleCalendarItem[]>([]);
   const [loading, setLoading] = useState(false);

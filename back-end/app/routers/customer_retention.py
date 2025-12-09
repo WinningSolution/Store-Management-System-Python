@@ -112,6 +112,9 @@ def _fetch_cohort_rows(
         return rows
 
     # 점포 미지정: 기존 전국 기준 로직 (최초 구매월/재구매 모두 전체 기준)
+    store_filter_sales = ""
+    store_filter_first = ""
+
     sql = f"""
         SELECT
             t.first_yyyymm,

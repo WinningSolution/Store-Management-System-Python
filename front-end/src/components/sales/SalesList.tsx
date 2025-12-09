@@ -30,18 +30,20 @@ interface SalesListProps {
   onNavigate: (page: Page, id?: string, options?: any) => void;
   initialDateFrom?: string;
   initialDateTo?: string;
+  initialStoreId?: string;
 }
 
 export function SalesList({
   onNavigate,
   initialDateFrom,
   initialDateTo,
+  initialStoreId,
 }: SalesListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>(initialDateFrom || '');
   const [dateTo, setDateTo] = useState<string>(initialDateTo || '');
-  const [storeId, setStoreId] = useState<string>('all');
+  const [storeId, setStoreId] = useState<string>(initialStoreId || 'all');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(30);
   const [total, setTotal] = useState(0);

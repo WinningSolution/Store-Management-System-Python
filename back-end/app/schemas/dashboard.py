@@ -44,12 +44,24 @@ class NotificationItem(BaseModel):
     createdAt: datetime
 
 
+class TodaySalesPoint(BaseModel):
+    timeLabel: str  # 예: "09:00"
+    sales: float
+
+
+class WeekPeakPoint(BaseModel):
+    dayLabel: str  # 예: "월", "화"
+    sales: float
+
+
 class MainDashboardResponse(BaseModel):
     salesSummary: SalesSummary
     inventoryAlerts: List[InventoryAlertItem]
     todayAttendance: List[TodayAttendanceItem]
     vacationToday: List[VacationTodayItem]
     notifications: List[NotificationItem]
+    todaySalesSeries: List[TodaySalesPoint]
+    weekPeakSeries: List[WeekPeakPoint]
 
 
 class ManagementKpi(BaseModel):

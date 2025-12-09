@@ -28,6 +28,10 @@ import { fetchStores, StoreListItem } from "../../services/storeApi";
 
 interface SalesAnalyticsSummaryProps {
   onNavigate: (page: Page, id?: string, options?: any) => void;
+  /** 대시보드 등에서 넘어온 초기 기준 월(YYYY-MM). 없으면 기본값 사용 */
+  initialBaseMonth?: string;
+  /** 대시보드 등에서 넘어온 초기 점포 ID. 없으면 'all' */
+  initialStoreId?: string;
 }
 
 type CompareMode = "전년 동기간" | "전월 동기간";
@@ -111,11 +115,17 @@ const CATEGORY_PALETTE = [
   "#92400e", // 브라운
 ];
 
-export function SalesAnalyticsSummary({ onNavigate }: SalesAnalyticsSummaryProps) {
+export function SalesAnalyticsSummary({
+  onNavigate,
+  initialBaseMonth,
+  initialStoreId,
+}: SalesAnalyticsSummaryProps) {
   const [compareMode, setCompareMode] = useState<CompareMode>("전년 동기간");
   const [metricTab, setMetricTab] = useState<"매출" | "건수" | "객단가">("매출");
 
-  const [basePeriod, setBasePeriod] = useState<string>("2025-09");
+  const [basePeriod, setBasePeriod] = useState<string>(
+    initialBaseMonth || "2025-09"
+  );
   const [trendData, setTrendData] = useState(fallbackTrendCompareData);
   const [summaryData, setSummaryData] = useState(fallbackPeriodSummaryData);
   const [lineData, setLineData] = useState(fallbackLineCompareData);
@@ -126,7 +136,7 @@ export function SalesAnalyticsSummary({ onNavigate }: SalesAnalyticsSummaryProps
     fallbackCategoryThisYear
   );
   const [stores, setStores] = useState<StoreListItem[]>([]);
-  const [storeId, setStoreId] = useState<string>("all");
+  const [storeId, setStoreId] = useState<string>(initialStoreId || "all");
   // 최대 5개 점포까지 선택해서 일별 추이를 비교하기 위한 상태
   const [compareStoreIds, setCompareStoreIds] = useState<string[]>([]);
   const [compareStoreTrends, setCompareStoreTrends] = useState<

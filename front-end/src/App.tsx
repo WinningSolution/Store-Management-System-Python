@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Layout } from './components/Layout';
 import { MainDashboard } from './components/dashboard/MainDashboard';
-import { ManagementDashboard } from './components/dashboard/ManagementDashboard';
 import { EmployeeList } from './components/employee/EmployeeList';
 import { EmployeeDetail } from './components/employee/EmployeeDetail';
 import { EmployeeForm } from './components/employee/EmployeeForm';
@@ -30,14 +29,12 @@ import { AbTestDashboard } from './components/customer/AbTestDashboard';
 import { CustomerRegionSegmentAnalytics } from './components/customer/CustomerRegionSegmentAnalytics';
 import { StoreMaster } from './components/settings/StoreMaster';
 import { ProductMaster } from './components/settings/ProductMaster';
-import { InventoryPolicy } from './components/settings/InventoryPolicy';
 import { SchedulePolicy } from './components/settings/SchedulePolicy';
 import { Toaster } from 'sonner@2.0.3';
 
 export type Page = 
   // 대시보드
   | 'main-dashboard'
-  | 'management-dashboard'
   // 직원·근태 관리
   | 'employee-list' | 'employee-detail' | 'employee-form'
   | 'schedule-calendar'
@@ -69,31 +66,33 @@ export type Page =
   // 시스템 설정
   | 'store-master'
   | 'product-master'
-  | 'inventory-policy'
   | 'schedule-policy';
 
-interface SalesListPreset {
+interface NavigationOptions {
   dateFrom?: string;
   dateTo?: string;
+  storeId?: string;
+  baseMonth?: string;
+  sku?: string;
 }
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('main-dashboard');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [salesListPreset, setSalesListPreset] = useState<SalesListPreset | null>(
-    null
-  );
+  const [navOptions, setNavOptions] = useState<NavigationOptions | null>(null);
 
   const navigateTo = (
     page: Page,
     id?: string,
-    options?: SalesListPreset
+    options?: NavigationOptions
   ) => {
     setCurrentPage(page);
-    if (id) setSelectedId(id);
-    if (page === 'sales-list') {
-      setSalesListPreset(options || null);
+    if (id) {
+      setSelectedId(id);
+    } else {
+      setSelectedId(null);
     }
+    setNavOptions(options || null);
   };
 
   const renderPage = () => {
@@ -101,8 +100,6 @@ export default function App() {
       // 대시보드
       case 'main-dashboard':
         return <MainDashboard onNavigate={navigateTo} />;
-      case 'management-dashboard':
-        return <ManagementDashboard onNavigate={navigateTo} />;
       
       // 직원·근태 관리
       case 'employee-list':
@@ -112,9 +109,21 @@ export default function App() {
       case 'employee-form':
         return <EmployeeForm employeeId={selectedId} onNavigate={navigateTo} />;
       case 'schedule-calendar':
-        return <ScheduleCalendar onNavigate={navigateTo} />;
+        return (
+          <ScheduleCalendar
+            onNavigate={navigateTo}
+            initialStoreId={navOptions?.storeId}
+            initialBaseDate={navOptions?.dateFrom}
+          />
+        );
       case 'vacation-management':
-        return <VacationManagement onNavigate={navigateTo} />;
+        return (
+          <VacationManagement
+            onNavigate={navigateTo}
+            initialStoreId={navOptions?.storeId}
+            initialBaseDate={navOptions?.dateFrom}
+          />
+        );
       case 'schedule-ingredient':
         return <ScheduleIngredient onNavigate={navigateTo} />;
       
@@ -131,8 +140,9 @@ export default function App() {
         return (
           <SalesList
             onNavigate={navigateTo}
-            initialDateFrom={salesListPreset?.dateFrom}
-            initialDateTo={salesListPreset?.dateTo}
+            initialDateFrom={navOptions?.dateFrom}
+            initialDateTo={navOptions?.dateTo}
+            initialStoreId={navOptions?.storeId}
           />
         );
       case 'sales-detail':
@@ -140,19 +150,41 @@ export default function App() {
       
       // 매출 분석
       case 'sales-analytics-summary':
-        return <SalesAnalyticsSummary onNavigate={navigateTo} />;
+        return (
+          <SalesAnalyticsSummary
+            onNavigate={navigateTo}
+            initialBaseMonth={navOptions?.baseMonth}
+            initialStoreId={navOptions?.storeId}
+          />
+        );
       case 'sales-composition':
-        return <SalesComposition onNavigate={navigateTo} />;
+        return (
+          <SalesComposition
+            onNavigate={navigateTo}
+            baseMonth={navOptions?.baseMonth}
+            initialStoreId={navOptions?.storeId}
+          />
+        );
       case 'cohort-retention':
         return <CohortRetention onNavigate={navigateTo} />;
       
       // 재고·발주 관리
       case 'inventory-list':
-        return <InventoryList onNavigate={navigateTo} />;
+        return (
+          <InventoryList
+            onNavigate={navigateTo}
+            initialStoreId={navOptions?.storeId}
+          />
+        );
       case 'inventory-detail':
         return <InventoryDetail itemId={selectedId!} onNavigate={navigateTo} />;
       case 'inventory-forecast':
-        return <InventoryForecast onNavigate={navigateTo} />;
+        return (
+          <InventoryForecast
+            onNavigate={navigateTo}
+            initialStoreId={navOptions?.storeId}
+          />
+        );
       case 'dead-stock-monitor':
         return <DeadStockMonitor onNavigate={navigateTo} />;
       
@@ -184,8 +216,6 @@ export default function App() {
         return <StoreMaster onNavigate={navigateTo} />;
       case 'product-master':
         return <ProductMaster onNavigate={navigateTo} />;
-      case 'inventory-policy':
-        return <InventoryPolicy onNavigate={navigateTo} />;
       case 'schedule-policy':
         return <SchedulePolicy onNavigate={navigateTo} />;
       

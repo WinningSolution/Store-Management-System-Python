@@ -26,8 +26,7 @@ const navigation: NavItem[] = [
     label: '대시보드',
     page: 'main-dashboard',
     children: [
-      { label: '메인 대시보드', page: 'main-dashboard' },
-      { label: '경영 지표', page: 'management-dashboard' },
+      { label: '매장 운영 현황', page: 'main-dashboard' },
     ],
   },
   {
@@ -96,7 +95,6 @@ const navigation: NavItem[] = [
     children: [
       { label: '매장 정보', page: 'store-master' },
       { label: '상품 마스터', page: 'product-master' },
-      { label: '재고 정책', page: 'inventory-policy' },
       { label: '스케줄 정책', page: 'schedule-policy' },
     ],
   },
@@ -144,7 +142,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
       {/* Sidebar */}
       <aside className={`${isOpen ? 'w-64' : 'w-0'} transition-all duration-300 bg-white border-r border-gray-200 flex flex-col overflow-hidden`}>
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-red-600 font-semibold text-xl">UNIQLO</h1>
+          <h1 className="text-blue-600 font-semibold text-xl">Winning Solution</h1>
           <p className="text-gray-500 text-sm mt-1">Store Management</p>
         </div>
         
