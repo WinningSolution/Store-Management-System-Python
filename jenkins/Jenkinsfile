@@ -1,0 +1,88 @@
+pipeline {
+    agent any
+
+    environment {
+        // GitHub 저장소 정보
+        GIT_REPO   = 'https://github.com/WinningSolution/Store-Management-System-Python.git'
+        GIT_BRANCH = 'develop'
+    }
+
+    stages {
+        // ① GitHub에서 코드 가져오기
+        stage('Checkout Code from GitHub') {
+            steps {
+                script {
+                    // Jenkins 기본 작업 폴더(.)에서 수행
+                    dir('.') {
+                        sh """
+                            if [ -d ".git" ]; then
+                                echo "Repository already exists, fetching latest changes..."
+                                git fetch origin ${GIT_BRANCH}
+                                git checkout ${GIT_BRANCH}
+                                git pull origin ${GIT_BRANCH}
+                            else
+                                echo "Cloning repository..."
+                                git clone -b ${GIT_BRANCH} ${GIT_REPO} .
+                            fi
+                            git log -1 --oneline
+                        """
+                    }
+                }
+            }
+        }
+
+        // ② 백엔드 Docker 이미지 빌드 (EC2 로컬 backend 폴더 기준)
+        stage('Build Backend Image') {
+            steps {
+                script {
+                    dir('/home/ubuntu/projects/store-system/back-end') {
+                        echo "Building backend Docker image from local backend folder..."
+                        sh 'docker build -t store-backend:latest .'
+                    }
+                }
+            }
+        }
+
+        // ③ 프론트엔드 Docker 이미지 빌드 (EC2 로컬 frontend 폴더 기준)
+        stage('Build Frontend Image') {
+            steps {
+                script {
+                    dir('/home/ubuntu/projects/store-system/front-end') {
+                        echo "Building frontend Docker image from local frontend folder..."
+                        sh 'docker build -t store-frontend:latest .'
+                    }
+                }
+            }
+        }
+
+        // ④ docker compose로 서비스 재배포 (EC2 로컬 프로젝트 루트)
+        stage('Deploy with Docker Compose') {
+            steps {
+                script {
+                    dir('/home/ubuntu/projects/store-system') {
+                        sh '''
+                            echo "Stopping existing containers..."
+                            docker compose down
+                            echo "Starting containers with new images..."
+                            docker compose up -d
+                            echo "Deployment completed!"
+                            docker compose ps
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline succeeded! Backend and Frontend deployed successfully."
+        }
+        failure {
+            echo "❌ Pipeline failed! Check the logs for details."
+        }
+        always {
+            echo "Pipeline execution completed."
+        }
+    }
+}

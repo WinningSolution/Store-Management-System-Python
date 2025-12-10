@@ -1,0 +1,27 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+*.sqlite3
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environment / secrets
+.env
+*.env
+
+# ML model artifacts
+app/models/order_forecast_*.pkl
+
+# Test / temp
+*.tmp
+*.bak
+*.swp
+
+
+
