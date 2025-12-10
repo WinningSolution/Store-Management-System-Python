@@ -74,6 +74,8 @@ interface NavigationOptions {
   storeId?: string;
   baseMonth?: string;
   sku?: string;
+  // 자동 스케줄링용: 기준 주 시작일(월요일)
+  weekStartDt?: string;
 }
 
 export default function App() {
@@ -131,7 +133,14 @@ export default function App() {
       case 'demand-forecast':
         return <DemandForecast onNavigate={navigateTo} />;
       case 'auto-scheduling':
-        return <AutoScheduling onNavigate={navigateTo} />;
+        return (
+          <AutoScheduling
+            onNavigate={navigateTo}
+            initialStoreId={navOptions?.storeId}
+            initialWeekStart={navOptions?.weekStartDt}
+            initialPeakDate={navOptions?.dateFrom}
+          />
+        );
       case 'schedule-constraints':
         return <ScheduleConstraints onNavigate={navigateTo} />;
       

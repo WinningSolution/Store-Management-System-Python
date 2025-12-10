@@ -22,3 +22,5 @@ class ProductListResponse(BaseModel):
     items: List[ProductListItem]
 
 
+
+

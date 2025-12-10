@@ -53,6 +53,15 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
     { category: string; amount: number }[]
   >([]);
 
+  const categoryTotal = React.useMemo(
+    () =>
+      categoryMix.reduce(
+        (sum, item) => sum + (item.amount != null ? item.amount : 0),
+        0,
+      ),
+    [categoryMix],
+  );
+
   const loadStores = async () => {
     try {
       const res = await fetchStores();
@@ -352,9 +361,25 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
               {categoryMix.length > 0 ? (
                 <PieChart width={340} height={260}>
                   <Tooltip
-                    formatter={(value: any, name: any) =>
-                      `₩${Number(value || 0).toLocaleString("ko-KR")}`
-                    }
+                    formatter={(value: any, name: any) => {
+                      const amount = Number(value || 0);
+                      const amountText = `₩${amount.toLocaleString("ko-KR")}`;
+                      const percentRaw =
+                        categoryTotal > 0
+                          ? (amount / categoryTotal) * 100
+                          : null;
+                      const percentText =
+                        percentRaw != null
+                          ? `${percentRaw.toFixed(1)}%`
+                          : null;
+
+                      // 툴팁 값: "₩금액 (xx.x%)" 형태로 표기
+                      const valueText = percentText
+                        ? `${amountText} (${percentText})`
+                        : amountText;
+
+                      return [valueText, name];
+                    }}
                   />
                   <Pie
                     data={categoryMix}

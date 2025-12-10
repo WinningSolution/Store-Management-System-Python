@@ -475,6 +475,24 @@ export function SalesAnalyticsSummary({
     categoryColorMap[name] = CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length];
   });
 
+  // 카테고리 도넛용 총액 (비율 계산용)
+  const categoryLastYearTotal = useMemo(
+    () =>
+      categoryLastYear.reduce(
+        (sum, item) => sum + (item.amount != null ? item.amount : 0),
+        0,
+      ),
+    [categoryLastYear],
+  );
+  const categoryThisYearTotal = useMemo(
+    () =>
+      categoryThisYear.reduce(
+        (sum, item) => sum + (item.amount != null ? item.amount : 0),
+        0,
+      ),
+    [categoryThisYear],
+  );
+
   // 일별 추세 그래프: 기준/비교 최고/최저점 계산
   const baseValues = trendData.map((d) => d.base);
   const compareValues = trendData.map((d) => d.compare);
@@ -1077,7 +1095,24 @@ export function SalesAnalyticsSummary({
                       );
                     })}
                   </Pie>
-                  <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                  <Tooltip
+                    formatter={(v: any, name: any) => {
+                      const amount = Number(v || 0);
+                      const amountText = formatCurrency(amount);
+                      const percentRaw =
+                        categoryLastYearTotal > 0
+                          ? (amount / categoryLastYearTotal) * 100
+                          : null;
+                      const percentText =
+                        percentRaw != null
+                          ? `${percentRaw.toFixed(1)}%`
+                          : null;
+                      const valueText = percentText
+                        ? `${amountText} (${percentText})`
+                        : amountText;
+                      return [valueText, name];
+                    }}
+                  />
                   <text
                     x="50%"
                     y="50%"
@@ -1114,7 +1149,24 @@ export function SalesAnalyticsSummary({
                       );
                     })}
                   </Pie>
-                  <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                  <Tooltip
+                    formatter={(v: any, name: any) => {
+                      const amount = Number(v || 0);
+                      const amountText = formatCurrency(amount);
+                      const percentRaw =
+                        categoryThisYearTotal > 0
+                          ? (amount / categoryThisYearTotal) * 100
+                          : null;
+                      const percentText =
+                        percentRaw != null
+                          ? `${percentRaw.toFixed(1)}%`
+                          : null;
+                      const valueText = percentText
+                        ? `${amountText} (${percentText})`
+                        : amountText;
+                      return [valueText, name];
+                    }}
+                  />
                   <text
                     x="50%"
                     y="50%"

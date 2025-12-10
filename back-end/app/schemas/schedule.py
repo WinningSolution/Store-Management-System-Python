@@ -43,9 +43,23 @@ class DemandPeakItem(BaseModel):
     requiredStaff: int
 
 
+class WeeklyDemandPoint(BaseModel):
+    date: date
+    dayname: str
+    predictedSales: float
+    actualSales: float
+
+
 class DemandForecastResponse(BaseModel):
     heatmap: List[DemandHeatmapItem]
     summaryPeaks: List[DemandPeakItem]
+    # 오늘(또는 기준일) 기준 예측 KPI
+    expectedSalesToday: float
+    expectedVisitorsToday: int
+    peakHour: Optional[int] = None
+    peakRequiredStaff: Optional[int] = None
+    weeklySummary: List[WeeklyDemandPoint] = []
+    weeklyAccuracy: Optional[float] = None
 
 
 class AutoSchedulingRequest(BaseModel):
@@ -57,6 +71,11 @@ class AutoSchedulingRequest(BaseModel):
 class AutoSchedulingResult(BaseModel):
     status: str
     conflicts: List[dict]
+
+
+class ApplyScheduleRequest(BaseModel):
+    storeId: str
+    weekStartDt: date
 
 
 class ScheduleResultItem(BaseModel):

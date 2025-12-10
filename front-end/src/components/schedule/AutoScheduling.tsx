@@ -8,15 +8,28 @@ import { Page } from "../../App";
 import {
   runAutoScheduling,
   fetchScheduleResult,
+  applySchedule,
   ScheduleResultItem,
 } from "../../services/scheduleApi";
 import { toast } from "sonner";
+import { fetchStores, StoreListItem } from "../../services/storeApi";
 
 interface AutoSchedulingProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, id?: string, options?: any) => void;
+  /** 피크타임 예측에서 넘어온 대상 점포 ID */
+  initialStoreId?: string;
+  /** 피크타임 예측에서 넘어온 기준 주 시작일(월요일, YYYY-MM-DD) */
+  initialWeekStart?: string;
+  /** 피크타임 예측에서 사용한 기준일(YYYY-MM-DD) */
+  initialPeakDate?: string;
 }
 
-export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
+export function AutoScheduling({
+  onNavigate,
+  initialStoreId,
+  initialWeekStart,
+  initialPeakDate,
+}: AutoSchedulingProps) {
   const [showResults, setShowResults] = useState(false);
   const [constraints, setConstraints] = useState({
     maxHoursPerWeek: 40,
@@ -27,12 +40,35 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
     maxStaff: 8,
   });
   const [weekStart, setWeekStart] = useState<string>(() => {
-    // 더미 데이터 마지막 주 (2025-09-29 월요일)로 초기값 설정
+    if (initialWeekStart) return initialWeekStart;
+    // 기본값: 더미 데이터 마지막 주 (2025-09-29 월요일)
     return "2025-09-29";
   });
+  const targetStoreId = initialStoreId || "S001";
+  const [stores, setStores] = useState<StoreListItem[]>([]);
   const [results, setResults] = useState<ScheduleResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
+
+  useEffect(() => {
+    const loadStores = async () => {
+      try {
+        const res = await fetchStores();
+        setStores(res.items || []);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadStores();
+  }, []);
+
+  const targetStoreLabel = useMemo(() => {
+    if (!initialStoreId) return "";
+    const store = stores.find((s) => s.storeId === initialStoreId);
+    if (!store) return initialStoreId;
+    const name = store.storeNm || store.storeId;
+    return `${name} (${store.storeId})`;
+  }, [stores, initialStoreId]);
 
   const handleGenerate = async () => {
     try {
@@ -40,13 +76,13 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
       toast.success("AI 기반 최적 스케줄을 생성중입니다...");
 
       await runAutoScheduling({
-        storeId: "S001",
+        storeId: targetStoreId,
         weekStartDt: weekStart,
         strategy: "full",
       });
 
       const res = await fetchScheduleResult({
-        store_id: "S001",
+        store_id: targetStoreId,
         week_start_dt: weekStart,
       });
       setResults(res.items);
@@ -63,10 +99,19 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
   const handleApprove = async () => {
     try {
       setApproving(true);
-      toast.success("스케줄이 승인되었습니다");
-      setTimeout(() => {
-        onNavigate("schedule-calendar");
-      }, 800);
+      // 확정 스케줄을 백엔드에 저장
+      await applySchedule({
+        storeId: targetStoreId,
+        weekStartDt: weekStart,
+      });
+      toast.success("스케줄이 승인되어 캘린더에 반영되었습니다.");
+      onNavigate("schedule-calendar", undefined, {
+        storeId: targetStoreId,
+        dateFrom: weekStart,
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("스케줄 적용 중 오류가 발생했습니다.");
     } finally {
       setApproving(false);
     }
@@ -97,8 +142,28 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
           <ArrowLeft className="w-4 h-4 mr-2" />
           스케줄 캘린더로
         </Button>
-        <h1 className="text-gray-900 mb-2">자동 스케줄 생성</h1>
-        <p className="text-gray-500">AI 기반 최적 스케줄링 (더미 데이터 기반)</p>
+        <h1 className="text-gray-900 text-xl font-semibold mb-2">
+          자동 스케줄 생성
+        </h1>
+        <p className="text-gray-500">
+          알고리즘 기반 최적 스케줄링 작성
+        </p>
+        <div className="mt-2 text-sm text-gray-500 flex flex-wrap gap-4">
+          {initialPeakDate && (
+            <span>
+              피크타임 기준일:{" "}
+              <span className="font-medium">{initialPeakDate}</span>
+            </span>
+          )}
+          {initialStoreId && (
+            <span>
+              대상 점포:{" "}
+              <span className="font-medium">
+                {targetStoreLabel || initialStoreId}
+              </span>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-6 mb-6">
@@ -131,7 +196,7 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
               />
             </div>
             <div>
-              <Label htmlFor="restHours">최소 휴게시간 (시간)</Label>
+              <Label htmlFor="restHours">연속 근무 사이 최소 휴게시간 (시간)</Label>
               <Input
                 id="restHours"
                 type="number"
@@ -139,6 +204,9 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
                 onChange={(e) => setConstraints({ ...constraints, minRestHours: Number(e.target.value) })}
                 className="mt-2"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                전일 퇴근 시각부터 익일 출근 시각까지 확보해야 하는 최소 휴게시간입니다.
+              </p>
             </div>
             <div>
               <Label htmlFor="breakTime">근무 중 휴게시간 (시간)</Label>
@@ -199,7 +267,9 @@ export function AutoScheduling({ onNavigate }: AutoSchedulingProps) {
                   </div>
                   <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
                     <CheckCircle className="w-5 h-5 text-blue-600" />
-                    <span className="text-gray-900">직원 선호도 및 스킬 매칭</span>
+                    <span className="text-gray-900">
+                      직원 선호 패턴 및 휴가 일정 반영
+                    </span>
                   </div>
                   <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
                     <CheckCircle className="w-5 h-5 text-blue-600" />

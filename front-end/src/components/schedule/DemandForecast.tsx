@@ -1,46 +1,195 @@
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Page } from '../../App';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, Users, DollarSign } from 'lucide-react';
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { Page } from "../../App";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import { TrendingUp, Users, DollarSign } from "lucide-react";
+import { fetchStores, StoreListItem } from "../../services/storeApi";
+import {
+  fetchDemandForecast,
+  DemandForecastResponse,
+} from "../../services/scheduleApi";
 
 interface DemandForecastProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, id?: string, options?: any) => void;
 }
 
-const hourlyData = [
-  { time: '09:00', visitors: 45, sales: 1200, required: 3 },
-  { time: '10:00', visitors: 68, sales: 1800, required: 4 },
-  { time: '11:00', visitors: 92, sales: 2500, required: 5 },
-  { time: '12:00', visitors: 120, sales: 3200, required: 6 },
-  { time: '13:00', visitors: 135, sales: 3600, required: 7 },
-  { time: '14:00', visitors: 110, sales: 2900, required: 6 },
-  { time: '15:00', visitors: 95, sales: 2400, required: 5 },
-  { time: '16:00', visitors: 88, sales: 2200, required: 5 },
-  { time: '17:00', visitors: 115, sales: 3100, required: 6 },
-  { time: '18:00', visitors: 145, sales: 4200, required: 7 },
-  { time: '19:00', visitors: 165, sales: 4800, required: 8 },
-  { time: '20:00', visitors: 140, sales: 4000, required: 7 },
-  { time: '21:00', visitors: 98, sales: 2600, required: 5 },
-  { time: '22:00', visitors: 52, sales: 1400, required: 3 },
-];
-
-const weeklyData = [
-  { day: '월', predicted: 2800, actual: 2650 },
-  { day: '화', predicted: 3200, actual: 3100 },
-  { day: '수', predicted: 3500, actual: 3450 },
-  { day: '목', predicted: 3800, actual: 3900 },
-  { day: '금', predicted: 5200, actual: 5100 },
-  { day: '토', predicted: 6800, actual: 6500 },
-  { day: '일', predicted: 6200, actual: 6300 },
-];
-
 export function DemandForecast({ onNavigate }: DemandForecastProps) {
+  const [stores, setStores] = useState<StoreListItem[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
+  const [targetDate, setTargetDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10);
+  });
+  const [forecast, setForecast] = useState<DemandForecastResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 매장 목록 로딩
+  useEffect(() => {
+    const loadStores = async () => {
+      try {
+        const res = await fetchStores();
+        const items = res.items || [];
+        setStores(items);
+        if (items.length > 0 && !selectedStoreId) {
+          setSelectedStoreId(items[0].storeId);
+        }
+      } catch (e) {
+        console.error(e);
+        setError("매장 정보를 불러오지 못했습니다.");
+      }
+    };
+    loadStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 수요 예측 데이터 로딩
+  useEffect(() => {
+    const loadForecast = async () => {
+      if (!selectedStoreId || !targetDate) return;
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await fetchDemandForecast({
+          store_id: selectedStoreId,
+          target_dt: targetDate,
+          history_days: 28,
+        } as any);
+        setForecast(res);
+      } catch (e) {
+        console.error(e);
+        setError("수요 예측 데이터를 불러오지 못했습니다.");
+        setForecast(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadForecast();
+  }, [selectedStoreId, targetDate]);
+
+  // 시간대별 집계 (heatmap → BarChart 용 데이터)
+  const hourlyData = useMemo(() => {
+    if (!forecast || !forecast.heatmap) return [];
+    const byHour = new Map<
+      number,
+      { salesSum: number; requiredMax: number; cnt: number }
+    >();
+
+    forecast.heatmap.forEach((item) => {
+      const cur = byHour.get(item.hour) || {
+        salesSum: 0,
+        requiredMax: 0,
+        cnt: 0,
+      };
+      cur.salesSum += item.salesAmt;
+      cur.requiredMax = Math.max(cur.requiredMax, item.requiredStaff);
+      cur.cnt += 1;
+      byHour.set(item.hour, cur);
+    });
+
+    const hours = Array.from(byHour.keys()).sort((a, b) => a - b);
+    return hours.map((h) => {
+      const agg = byHour.get(h)!;
+      const avgSales =
+        agg.cnt > 0 ? agg.salesSum / agg.cnt : 0;
+      // 방문객은 평균 매출을 객단가 2만원으로 나눈 값으로 재계산
+      const avgVisitors = Math.max(
+        0,
+        Math.round((avgSales || 0) / 20000),
+      );
+      return {
+        time: `${String(h).padStart(2, "0")}:00`,
+        visitors: avgVisitors,
+        required: agg.requiredMax,
+      };
+    });
+  }, [forecast]);
+
+  const expectedVisitors =
+    forecast?.expectedVisitorsToday != null
+      ? forecast.expectedVisitorsToday
+      : 0;
+  const expectedSales =
+    forecast?.expectedSalesToday != null ? forecast.expectedSalesToday : 0;
+  const peakHour = forecast?.peakHour;
+  const peakRequired = forecast?.peakRequiredStaff ?? null;
+
+  const peakText =
+    peakRequired && peakHour != null
+      ? `${peakRequired}명 (${String(peakHour).padStart(2, "0")}:00 기준)`
+      : "-";
+
+  // 주간 매출 예측 vs 실제 (라인 차트용)
+  const weeklyData = useMemo(() => {
+    if (!forecast || !forecast.weeklySummary) return [];
+    const dayLabelMap: Record<string, string> = {
+      Mon: "월",
+      Tue: "화",
+      Wed: "수",
+      Thu: "목",
+      Fri: "금",
+      Sat: "토",
+      Sun: "일",
+    };
+    return forecast.weeklySummary.map((p) => ({
+      day: dayLabelMap[p.dayname] || p.dayname,
+      predicted: p.predictedSales,
+      actual: p.actualSales,
+    }));
+  }, [forecast]);
+
+  const weeklyAccuracy =
+    forecast?.weeklyAccuracy != null ? forecast.weeklyAccuracy : null;
+
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-gray-900 mb-2">수요 예측 대시보드</h1>
-        <p className="text-gray-500">AI 기반 방문객 및 매출 예측</p>
+      <div className="mb-8 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-gray-900 mb-2">수요 예측 대시보드</h1>
+          <p className="text-gray-500">
+            SALES 데이터를 기반으로 시간대별 방문객·매출·필요 인원을 예측합니다.
+          </p>
+          {error && (
+            <p className="text-xs text-red-500 mt-2">{error}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 whitespace-nowrap">점포</span>
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="border border-gray-300 rounded px-2 py-1 text-sm min-w-[180px]"
+            >
+              {stores.map((s) => (
+                <option key={s.storeId} value={s.storeId}>
+                  {s.storeNm || s.storeId}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 whitespace-nowrap">기준일</span>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="border border-gray-300 rounded px-2 py-1 text-sm"
+            />
+          </div>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -51,10 +200,16 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
               <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-blue-600" />
               </div>
-              <span className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">+8.5%</span>
+              <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                최근 4주 평균
+              </span>
             </div>
             <p className="text-gray-500 text-sm mb-1">오늘 예상 방문객</p>
-            <p className="text-gray-900">1,450명</p>
+            <p className="text-gray-900">
+              {loading && !forecast
+                ? "로딩 중..."
+                : `${expectedVisitors.toLocaleString("ko-KR")}명`}
+            </p>
           </CardContent>
         </Card>
 
@@ -64,10 +219,16 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
               <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-green-600" />
               </div>
-              <span className="text-sm text-green-600 bg-green-50 px-2 py-1 rounded">+12.3%</span>
+              <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                최근 4주 평균
+              </span>
             </div>
             <p className="text-gray-500 text-sm mb-1">오늘 예상 매출</p>
-            <p className="text-gray-900">₩8,950,000</p>
+            <p className="text-gray-900">
+              {loading && !forecast
+                ? "로딩 중..."
+                : `₩${Math.round(expectedSales).toLocaleString("ko-KR")}`}
+            </p>
           </CardContent>
         </Card>
 
@@ -79,7 +240,9 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
               </div>
             </div>
             <p className="text-gray-500 text-sm mb-1">피크 시간 필요 인원</p>
-            <p className="text-gray-900">8명 (18:00-20:00)</p>
+            <p className="text-gray-900">
+              {loading && !forecast ? "로딩 중..." : peakText}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -96,7 +259,17 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
               <XAxis dataKey="time" stroke="#9ca3af" />
               <YAxis yAxisId="left" stroke="#9ca3af" />
               <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" />
-              <Tooltip />
+              <Tooltip
+                formatter={(value: any, name: any) => {
+                  if (name === "예상 방문객") {
+                    return [`${value}명`, name];
+                  }
+                  if (name === "필요 인원") {
+                    return [`${value}명`, name];
+                  }
+                  return [value, name];
+                }}
+              />
               <Legend />
               <Bar yAxisId="left" dataKey="visitors" fill="#3b82f6" name="예상 방문객" radius={[4, 4, 0, 0]} />
               <Bar yAxisId="right" dataKey="required" fill="#8b5cf6" name="필요 인원" radius={[4, 4, 0, 0]} />
@@ -112,21 +285,65 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
             <CardTitle>주간 매출 예측 vs 실제</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="predicted" stroke="#93c5fd" strokeWidth={2} name="예측 매출" dot={{ fill: '#93c5fd', r: 4 }} />
-                <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} name="실제 매출" dot={{ fill: '#3b82f6', r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-900">예측 정확도: <span className="font-bold">94.8%</span></p>
-              <p className="text-xs text-blue-600 mt-1">지난 4주 평균 기준</p>
-            </div>
+            {weeklyData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={weeklyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="day" stroke="#9ca3af" />
+                    <YAxis
+                      stroke="#9ca3af"
+                      tickFormatter={(v) =>
+                        `${Math.round(v / 1000000).toLocaleString("ko-KR")}M`
+                      }
+                    />
+                    <Tooltip
+                      formatter={(value: any, name: any) => [
+                        `₩${Math.round(Number(value) || 0).toLocaleString(
+                          "ko-KR",
+                        )}`,
+                        name,
+                      ]}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="predicted"
+                      stroke="#93c5fd"
+                      strokeWidth={2}
+                      name="예측 매출"
+                      dot={{ fill: "#93c5fd", r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="actual"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      name="실제 매출"
+                      dot={{ fill: "#3b82f6", r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-900">
+                    예측 정확도:{" "}
+                    <span className="font-bold">
+                      {weeklyAccuracy != null
+                        ? `${weeklyAccuracy.toFixed(1)}%`
+                        : "-"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    기준일 포함 주차(월~일) 기준, 최근 4주 패턴 기반 예측 정확도
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500">
+                해당 주차에 대한 매출 데이터가 충분하지 않아 예측 비교를 표시할
+                수 없습니다.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -137,50 +354,57 @@ export function DemandForecast({ onNavigate }: DemandForecastProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-red-600 mt-2"></div>
-                  <div>
-                    <p className="text-red-900">금요일 18-20시 인원 부족 예상</p>
-                    <p className="text-sm text-red-600 mt-1">현재 배치: 6명 / 필요: 8명 (+2명 필요)</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-orange-600 mt-2"></div>
-                  <div>
-                    <p className="text-orange-900">토요일 피크 시간 예측</p>
-                    <p className="text-sm text-orange-600 mt-1">예상 방문객 1,800명 (전주 대비 +15%)</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-600 mt-2"></div>
-                  <div>
-                    <p className="text-blue-900">이번 주 예상 매출 증가</p>
-                    <p className="text-sm text-blue-600 mt-1">전주 대비 +12.3% 증가 예상</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-600 mt-2"></div>
-                  <div>
-                    <p className="text-green-900">월요일 여유 인력</p>
-                    <p className="text-sm text-green-600 mt-1">예상 방문객 대비 1명 여유</p>
-                  </div>
-                </div>
-              </div>
+                {forecast && forecast.summaryPeaks.length > 0 ? (
+                  <>
+                    {forecast.summaryPeaks.slice(0, 3).map((p, idx) => (
+                      <div
+                        key={`${p.date}-${p.hour}-${idx}`}
+                        className="p-4 bg-red-50 border border-red-200 rounded-lg"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-red-600 mt-2" />
+                          <div>
+                            <p className="text-red-900">
+                              피크 시간대 예측 ·{" "}
+                              {String(p.hour).padStart(2, "0")}:00
+                            </p>
+                            <p className="text-sm text-red-600 mt-1">
+                              예상 매출{" "}
+                              {`₩${Math.round(p.salesAmt).toLocaleString(
+                                "ko-KR",
+                              )}`}{" "}
+                              / 필요 인원 {p.requiredStaff}명
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    최근 4주 기준 피크 시간대 데이터를 찾지 못했습니다.
+                  </p>
+                )}
             </div>
 
-            <Button 
+            <Button
               className="w-full mt-6 bg-blue-600 hover:bg-blue-700"
-              onClick={() => onNavigate('schedule-auto')}
+              onClick={() => {
+                // 기준일이 속한 주의 월요일을 계산하여 자동 스케줄링 페이지에 전달
+                let weekStartStr = targetDate;
+                if (targetDate) {
+                  const d = new Date(targetDate);
+                  const day = d.getDay(); // 0=Sun..6=Sat
+                  const diff = day === 0 ? -6 : 1 - day;
+                  d.setDate(d.getDate() + diff);
+                  weekStartStr = d.toISOString().slice(0, 10);
+                }
+                onNavigate("auto-scheduling", undefined, {
+                  storeId: selectedStoreId || undefined,
+                  dateFrom: targetDate,
+                  weekStartDt: weekStartStr,
+                });
+              }}
             >
               자동 스케줄 조정하기
             </Button>

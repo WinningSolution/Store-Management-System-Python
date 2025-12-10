@@ -77,7 +77,11 @@ function addDays(d: Date, days: number): Date {
   return nd;
 }
 
-export function ScheduleCalendar({ onNavigate }: ScheduleCalendarProps) {
+export function ScheduleCalendar({
+  onNavigate,
+  initialStoreId,
+  initialBaseDate,
+}: ScheduleCalendarProps) {
   type RegionKey =
     | "seoulIncheon"
     | "gyeonggi"

@@ -35,6 +35,17 @@ export interface DemandPeakItem {
 export interface DemandForecastResponse {
   heatmap: DemandHeatmapItem[];
   summaryPeaks: DemandPeakItem[];
+  expectedSalesToday: number;
+  expectedVisitorsToday: number;
+  peakHour: number | null;
+  peakRequiredStaff: number | null;
+  weeklySummary: {
+    date: string;
+    dayname: string;
+    predictedSales: number;
+    actualSales: number;
+  }[];
+  weeklyAccuracy?: number | null;
 }
 
 export interface AutoSchedulingRequest {
@@ -99,8 +110,8 @@ export function fetchScheduleCalendar(params: {
 
 export function fetchDemandForecast(params: {
   store_id: string;
-  start_dt: string;
-  end_dt: string;
+  target_dt: string;
+  history_days?: number;
 }): Promise<DemandForecastResponse> {
   return get<DemandForecastResponse>("/scheduling/demand", params);
 }
@@ -109,6 +120,12 @@ export function runAutoScheduling(
   body: AutoSchedulingRequest
 ): Promise<AutoSchedulingResult> {
   return post<AutoSchedulingResult>("/scheduling/auto-generate", body);
+}
+
+export function applySchedule(
+  body: { storeId: string; weekStartDt: string }
+): Promise<AutoSchedulingResult> {
+  return post<AutoSchedulingResult>("/scheduling/apply", body);
 }
 
 export function fetchScheduleResult(params: {
