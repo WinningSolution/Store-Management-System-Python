@@ -1096,7 +1096,15 @@ export function SalesComposition({
                     </TableHeader>
                     <TableBody>
                       {storeTopProducts.map((p) => (
-                        <TableRow key={p.rank}>
+                        <TableRow
+                          key={p.rank}
+                          className="cursor-pointer hover:bg-gray-50"
+                          onClick={() =>
+                            onNavigate("inventory-list", undefined, {
+                              storeId: selectedStoreId || undefined,
+                            })
+                          }
+                        >
                           <TableCell className="text-center">
                             {p.rank}
                           </TableCell>
