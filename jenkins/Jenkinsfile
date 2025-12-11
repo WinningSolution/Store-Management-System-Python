@@ -3,20 +3,31 @@ pipeline {
 
     environment {
         PROJECT_DIR = '/home/ubuntu/projects/store-system'
+        GIT_BRANCH = 'develop-ubuntu'
     }
 
     stages {
-        // ① Jenkins가 이미 체크아웃한 코드를 프로젝트 디렉토리로 복사
-        stage('Prepare Deployment Directory') {
+        // ① 프로젝트 디렉토리에서 Git으로 최신 코드 가져오기
+        stage('Update Code from Git') {
             steps {
                 script {
                     sh """
-                        echo "Copying files to deployment directory..."
-                        mkdir -p ${PROJECT_DIR}
-                        cp -r * ${PROJECT_DIR}/ || true
-                        cp -r .* ${PROJECT_DIR}/ 2>/dev/null || true
-                        cd ${PROJECT_DIR}
-                        git status || echo "Not a git repo, continuing..."
+                        echo "Updating code in ${PROJECT_DIR}..."
+                        
+                        if [ -d "${PROJECT_DIR}/.git" ]; then
+                            echo "Git repository exists, pulling latest changes..."
+                            cd ${PROJECT_DIR}
+                            git fetch origin ${GIT_BRANCH}
+                            git checkout ${GIT_BRANCH}
+                            git pull origin ${GIT_BRANCH}
+                            git log -1 --oneline
+                        else
+                            echo "Git repository not found, cloning..."
+                            mkdir -p ${PROJECT_DIR}
+                            cd ${PROJECT_DIR}
+                            git clone -b ${GIT_BRANCH} https://github.com/WinningSolution/Store-Management-System-Python.git .
+                            git log -1 --oneline
+                        fi
                     """
                 }
             }
