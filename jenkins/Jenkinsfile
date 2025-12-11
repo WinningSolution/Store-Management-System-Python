@@ -14,22 +14,24 @@ pipeline {
                     sh """
                         echo "Updating code in ${PROJECT_DIR}..."
                         
-                        # Git safe.directory 설정 (dubious ownership 오류 방지)
-                        git config --global --add safe.directory ${PROJECT_DIR} || true
-                        
                         if [ -d "${PROJECT_DIR}/.git" ]; then
                             echo "Git repository exists, pulling latest changes..."
-                            cd ${PROJECT_DIR}
-                            git fetch origin ${GIT_BRANCH}
-                            git checkout ${GIT_BRANCH}
-                            git pull origin ${GIT_BRANCH}
-                            git log -1 --oneline
+                            sudo -u ubuntu bash -c "
+                                cd ${PROJECT_DIR}
+                                git fetch origin ${GIT_BRANCH}
+                                git checkout ${GIT_BRANCH}
+                                git pull origin ${GIT_BRANCH}
+                                git log -1 --oneline
+                            "
                         else
                             echo "Git repository not found, cloning..."
-                            mkdir -p ${PROJECT_DIR}
-                            cd ${PROJECT_DIR}
-                            git clone -b ${GIT_BRANCH} https://github.com/WinningSolution/Store-Management-System-Python.git .
-                            git log -1 --oneline
+                            sudo mkdir -p ${PROJECT_DIR}
+                            sudo chown ubuntu:ubuntu ${PROJECT_DIR}
+                            sudo -u ubuntu bash -c "
+                                cd ${PROJECT_DIR}
+                                git clone -b ${GIT_BRANCH} https://github.com/WinningSolution/Store-Management-System-Python.git .
+                                git log -1 --oneline
+                            "
                         fi
                     """
                 }
