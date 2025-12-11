@@ -42,23 +42,22 @@ pipeline {
         stage('Build and Deploy with Docker Compose') {
             steps {
                 script {
-                    dir("${PROJECT_DIR}") {
-                        sh '''
-                            echo "Current directory: $(pwd)"
-                            echo "Stopping existing containers..."
-                            docker compose down || true
-                            
-                            echo "Building and starting containers..."
-                            docker compose build --no-cache
-                            docker compose up -d
-                            
-                            echo "Waiting for services to be ready..."
-                            sleep 15
-                            
-                            echo "Checking container status..."
-                            docker compose ps
-                        '''
-                    }
+                    sh """
+                        cd ${PROJECT_DIR}
+                        echo "Current directory: \$(pwd)"
+                        echo "Stopping existing containers..."
+                        docker compose down || true
+                        
+                        echo "Building and starting containers..."
+                        docker compose build --no-cache
+                        docker compose up -d
+                        
+                        echo "Waiting for services to be ready..."
+                        sleep 15
+                        
+                        echo "Checking container status..."
+                        docker compose ps
+                    """
                 }
             }
         }
@@ -78,6 +77,7 @@ pipeline {
                         curl -f http://localhost/ -o /dev/null && echo "✅ Frontend is accessible" || echo "⚠️ Frontend check failed"
                         
                         echo "Checking container logs..."
+                        cd /home/ubuntu/projects/store-system
                         docker compose logs --tail=20 backend
                     '''
                 }
@@ -90,6 +90,7 @@ pipeline {
             echo "✅ Pipeline succeeded! Services deployed successfully."
             script {
                 sh '''
+                    cd /home/ubuntu/projects/store-system
                     echo "=== Container Status ==="
                     docker compose ps
                     echo ""
@@ -102,6 +103,7 @@ pipeline {
             echo "❌ Pipeline failed! Check the logs for details."
             script {
                 sh '''
+                    cd /home/ubuntu/projects/store-system
                     echo "=== Container Status ==="
                     docker compose ps || true
                     echo ""
