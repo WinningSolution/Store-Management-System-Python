@@ -23,5 +23,10 @@ app/models/order_forecast_*.pkl
 *.bak
 *.swp
 
+# Jenkins 임시 파일
+**/@tmp/
+**/*@tmp/
+store-system-deploy@tmp/
+
 
 
