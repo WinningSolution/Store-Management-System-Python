@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   DollarSign,
   Users,
@@ -71,8 +71,17 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
     }
   };
 
-  const loadDashboard = async () => {
+  // 로딩 중복 방지를 위한 ref
+  const isLoadingRef = useRef(false);
+
+  const loadDashboard = useCallback(async () => {
+    // 이미 로딩 중이면 중복 호출 방지
+    if (isLoadingRef.current) {
+      return;
+    }
+
     try {
+      isLoadingRef.current = true;
       setLoading(true);
       setError(null);
       const params: { store_id?: string; date?: string } = {};
@@ -97,6 +106,8 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
         fetchSalesSummary(summaryParams),
         fetchSalesCategoryCompare(categoryParams),
       ]);
+      
+      // 상태 업데이트를 한 번에 처리하여 리렌더링 최소화
       setData(res);
       setWeeklyDaily(summaryRes.daily || []);
       const cmix = (categoryRes.categories || []).map((c) => ({
@@ -110,8 +121,9 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
       setData(null);
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, [selectedStoreId, selectedDate]);
 
   useEffect(() => {
     loadStores();
@@ -119,8 +131,7 @@ export function MainDashboard({ onNavigate }: MainDashboardProps) {
 
   useEffect(() => {
     loadDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedStoreId, selectedDate]);
+  }, [loadDashboard]);
 
   const todaySales =
     data?.salesSummary?.todaySales != null

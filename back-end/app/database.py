@@ -13,6 +13,8 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_recycle=3600,
+    pool_size=10,  # 연결 풀 크기 증가
+    max_overflow=20,  # 추가 연결 허용
     echo=False,
 )
 

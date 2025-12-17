@@ -47,33 +47,39 @@ def get_main_dashboard(
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
 
-    sales_query = db.query(func.sum(Sales.qty * Sales.unit_price))
-    if store_id:
-        sales_query = sales_query.filter(Sales.store_id == store_id)
-
-    today_sales = (
-        sales_query.filter(func.date(Sales.sale_dt) == today).scalar() or 0
-    )
-    week_sales = (
-        sales_query.filter(
-            func.date(Sales.sale_dt) >= week_start,
-            func.date(Sales.sale_dt) <= week_end,
-        ).scalar()
-        or 0
-    )
-
-    # 전주(지난 주간) 매출 계산 후 주간 전주 대비 증감률(%)
+    # 매출 쿼리 최적화: 날짜 범위를 DateTime으로 변환하여 인덱스 활용
+    today_start = datetime.combine(today, datetime.min.time())
+    today_end = datetime.combine(today, datetime.max.time())
+    week_start_dt = datetime.combine(week_start, datetime.min.time())
+    week_end_dt = datetime.combine(week_end, datetime.max.time())
     prev_week_start = week_start - timedelta(days=7)
     prev_week_end = week_end - timedelta(days=7)
-    prev_week_sales_q = db.query(func.sum(Sales.qty * Sales.unit_price))
+    prev_week_start_dt = datetime.combine(prev_week_start, datetime.min.time())
+    prev_week_end_dt = datetime.combine(prev_week_end, datetime.max.time())
+    
+    # 단일 쿼리로 모든 매출 계산 (성능 향상)
+    sales_base_query = db.query(func.sum(Sales.qty * Sales.unit_price))
     if store_id:
-        prev_week_sales_q = prev_week_sales_q.filter(Sales.store_id == store_id)
+        sales_base_query = sales_base_query.filter(Sales.store_id == store_id)
+
+    today_sales = (
+        sales_base_query.filter(
+            Sales.sale_dt >= today_start,
+            Sales.sale_dt <= today_end
+        ).scalar() or 0
+    )
+    week_sales = (
+        sales_base_query.filter(
+            Sales.sale_dt >= week_start_dt,
+            Sales.sale_dt <= week_end_dt,
+        ).scalar() or 0
+    )
+    
     prev_week_sales = (
-        prev_week_sales_q.filter(
-            func.date(Sales.sale_dt) >= prev_week_start,
-            func.date(Sales.sale_dt) <= prev_week_end,
-        ).scalar()
-        or 0
+        sales_base_query.filter(
+            Sales.sale_dt >= prev_week_start_dt,
+            Sales.sale_dt <= prev_week_end_dt,
+        ).scalar() or 0
     )
 
     # Decimal → float 로 변환 후 증감률 계산 (Decimal * float 오류 방지)
@@ -92,19 +98,22 @@ def get_main_dashboard(
         weekSalesWoW=week_wow,
     )
 
-    # 재고 임박/품절 알림
-    inv_query = db.query(InventoryStatus).filter(InventoryStatus.snapshot_dt == today)
+    # 재고 임박/품절 알림 (최적화: 계산된 컬럼으로 필터링)
+    inv_query = db.query(
+        InventoryStatus.prod_id,
+        InventoryStatus.prod_nm,
+        InventoryStatus.store_id,
+        InventoryStatus.fl_qty,
+        InventoryStatus.br_qty,
+    ).filter(InventoryStatus.snapshot_dt == today)
     if store_id:
         inv_query = inv_query.filter(InventoryStatus.store_id == store_id)
     alerts: List[InventoryAlertItem] = []
     for inv in inv_query.all():
         total_qty = (inv.fl_qty or 0) + (inv.br_qty or 0)
-        if total_qty == 0:
-            status = "품절"
-        elif total_qty <= 3:
-            status = "임박"
-        else:
-            continue
+        if total_qty > 3:
+            continue  # 3개 초과는 제외하여 불필요한 처리 방지
+        status = "품절" if total_qty == 0 else "임박"
         alerts.append(
             InventoryAlertItem(
                 prodId=inv.prod_id,
@@ -214,11 +223,14 @@ def get_main_dashboard(
             )
         )
 
-    # 오늘 매출 시간대별 시리즈 (실제 매출 기준)
+    # 오늘 매출 시간대별 시리즈 (최적화: DateTime 범위 사용)
     sales_time_query = db.query(
         extract("hour", Sales.sale_dt).label("hour"),
         func.sum(Sales.qty * Sales.unit_price).label("amount"),
-    ).filter(func.date(Sales.sale_dt) == today)
+    ).filter(
+        Sales.sale_dt >= today_start,
+        Sales.sale_dt <= today_end
+    )
     if store_id:
         sales_time_query = sales_time_query.filter(Sales.store_id == store_id)
     sales_time_query = sales_time_query.group_by("hour").order_by("hour")
